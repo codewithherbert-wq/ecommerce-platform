@@ -1,36 +1,133 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ecommerce Platform
 
-## Getting Started
+Full-stack, fully-customizable e-commerce platform with admin panel, multi-payment support, and live order tracking.
 
-First, run the development server:
+## Features
+
+- **Beautiful landing page** with admin-controlled hero, theme colors, and copy
+- **Catalog** — products, categories, search, featured items
+- **Cart** with Zustand + persisted localStorage
+- **Auth** with NextAuth.js (Google + Facebook OAuth) — only registered users can purchase
+- **Stripe** card checkout + webhook payment confirmation
+- **Coinbase Commerce** crypto checkout (BTC, ETH, USDC, etc.) + webhook
+- **Tracking codes** auto-generated per order; live status timeline
+- **Geo-map tracking** with Leaflet + OpenStreetMap (free, no API key)
+- **Delivery agencies** selectable at checkout, configurable in admin
+- **Admin panel** to manage:
+  - Products & categories
+  - Orders & live status / coordinates
+  - Delivery agencies
+  - **Shop branding** — name, hero, colors, logo, currency, payment toggles. Re-brand the whole storefront (e.g. as a spare-parts shop, shoe store, etc.) without touching code.
+
+## Tech stack
+
+- Next.js 16 (App Router) · React 19 · TypeScript
+- Tailwind CSS v4
+- Drizzle ORM + Neon Postgres (HTTP driver)
+- NextAuth.js v5 (Auth.js) with the Drizzle adapter
+- Zustand (cart, UI) — persisted via `localStorage`
+- Axios for client API calls
+- Lucide React icons
+- Sonner for toasts
+- Stripe SDK
+- Coinbase Commerce REST API
+- Leaflet + react-leaflet (OpenStreetMap tiles)
+
+## Getting started
+
+### 1. Install
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+### 2. Configure `.env.local`
+
+You need at minimum `DATABASE_URL` and `AUTH_SECRET`. The rest are optional but unlock features:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `AUTH_SECRET` | Generated via `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | Public app URL (e.g. `http://localhost:3000`) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth |
+| `AUTH_FACEBOOK_ID` / `AUTH_FACEBOOK_SECRET` | Facebook OAuth |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Card payments |
+| `COINBASE_COMMERCE_API_KEY` / `COINBASE_COMMERCE_WEBHOOK_SECRET` | Crypto payments |
+| `ADMIN_EMAILS` | Comma-separated emails granted admin role on first sign-in |
+| `ENABLE_DEV_LOGIN` | Set to `1` to enable a no-OAuth dev login (password: `password`) |
+
+### 3. Run migrations
+
+```bash
+npm run db:push   # push the schema (dev)
+# or
+npm run db:generate && npm run db:migrate
+```
+
+### 4. (Optional) Seed sample data
+
+```bash
+npm run db:seed
+```
+
+### 5. Start the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## OAuth setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Google
+1. Visit https://console.cloud.google.com/apis/credentials
+2. Create an OAuth client ID (web application)
+3. Authorized redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Facebook
+1. Visit https://developers.facebook.com/apps
+2. Create an app → Facebook Login → set the redirect URI to `<NEXTAUTH_URL>/api/auth/callback/facebook`
 
-## Learn More
+## Stripe webhook
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Coinbase Commerce webhook
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+In the Coinbase Commerce dashboard, add an endpoint at `<NEXTAUTH_URL>/api/webhooks/coinbase` and copy the shared secret to `COINBASE_COMMERCE_WEBHOOK_SECRET`.
 
-## Deploy on Vercel
+## Admin access
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Add your email(s) to `ADMIN_EMAILS` (comma-separated). On your next sign-in your role is promoted to `admin` and the `/admin` panel becomes accessible.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project structure
+
+```
+src/
+├── app/
+│   ├── (storefront pages)
+│   ├── admin/             # Admin panel (gated)
+│   ├── api/               # Route handlers
+│   ├── auth/signin/       # Custom sign-in page
+│   ├── checkout/          # Multi-step checkout
+│   └── track/             # Public order tracking
+├── components/            # UI + feature components
+├── lib/
+│   ├── auth.ts            # NextAuth config
+│   ├── db/                # Drizzle client + schema
+│   ├── stripe.ts
+│   ├── coinbase.ts
+│   ├── shop.ts            # Shop config helpers
+│   └── tracking.ts
+├── stores/                # Zustand stores (cart + UI)
+└── proxy.ts               # Auth-gated route protection (Next.js 16 proxy)
+```
+
+## License
+
+MIT

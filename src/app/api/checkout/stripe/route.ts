@@ -1,0 +1,184 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { stripe, hasStripe } from "@/lib/stripe";
+import { db } from "@/lib/db";
+import { orders, orderItems, deliveryAgencies, products } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { requireUser } from "@/lib/admin";
+import { generateTrackingCode } from "@/lib/tracking";
+
+const schema = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        name: z.string(),
+        imageUrl: z.string().nullable(),
+        unitPriceCents: z.number().int().nonnegative(),
+        quantity: z.number().int().positive(),
+      })
+    )
+    .min(1),
+  deliveryAgencyId: z.string().uuid(),
+  customerName: z.string().min(1),
+  customerEmail: z.string().email(),
+  customerPhone: z.string().optional(),
+  line1: z.string().min(1),
+  line2: z.string().optional(),
+  city: z.string().min(1),
+  state: z.string().optional(),
+  postalCode: z.string().min(1),
+  country: z.string().min(2).max(2),
+});
+
+export async function POST(req: Request) {
+  const gate = await requireUser();
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  if (!hasStripe) {
+    return NextResponse.json(
+      { error: "Stripe is not configured on the server" },
+      { status: 503 }
+    );
+  }
+  const body = await req.json();
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+  }
+  const input = parsed.data;
+
+  // Validate product prices / stock against DB (don't trust the client).
+  const productIds = input.items.map((i) => i.productId);
+  const dbProducts = await db
+    .select()
+    .from(products)
+    .where(inArray(products.id, productIds));
+  for (const item of input.items) {
+    const p = dbProducts.find((x) => x.id === item.productId);
+    if (!p || !p.active) {
+      return NextResponse.json(
+        { error: `Product unavailable: ${item.name}` },
+        { status: 400 }
+      );
+    }
+    if (p.priceCents !== item.unitPriceCents) {
+      return NextResponse.json(
+        { error: `Price changed for ${p.name}. Please refresh your cart.` },
+        { status: 400 }
+      );
+    }
+    if (p.stock < item.quantity) {
+      return NextResponse.json(
+        { error: `Insufficient stock for ${p.name}` },
+        { status: 400 }
+      );
+    }
+  }
+
+  const [agency] = await db
+    .select()
+    .from(deliveryAgencies)
+    .where(eq(deliveryAgencies.id, input.deliveryAgencyId))
+    .limit(1);
+  if (!agency) {
+    return NextResponse.json(
+      { error: "Invalid delivery agency" },
+      { status: 400 }
+    );
+  }
+
+  const subtotal = input.items.reduce(
+    (s, i) => s + i.unitPriceCents * i.quantity,
+    0
+  );
+  const shipping = agency.priceCents;
+  const total = subtotal + shipping;
+
+  const trackingCode = generateTrackingCode();
+
+  const [order] = await db
+    .insert(orders)
+    .values({
+      userId: gate.session.user.id,
+      trackingCode,
+      status: "pending",
+      paymentStatus: "pending",
+      paymentMethod: "stripe",
+      subtotalCents: subtotal,
+      shippingCents: shipping,
+      totalCents: total,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+      shippingAddress: {
+        line1: input.line1,
+        line2: input.line2,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        country: input.country,
+      },
+      deliveryAgencyId: agency.id,
+      deliveryAgencyName: agency.name,
+    })
+    .returning();
+
+  await db.insert(orderItems).values(
+    input.items.map((i) => ({
+      orderId: order.id,
+      productId: i.productId,
+      name: i.name,
+      imageUrl: i.imageUrl,
+      unitPriceCents: i.unitPriceCents,
+      quantity: i.quantity,
+    }))
+  );
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: input.customerEmail,
+    line_items: [
+      ...input.items.map((i) => ({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: i.name,
+            images: i.imageUrl ? [i.imageUrl] : undefined,
+          },
+          unit_amount: i.unitPriceCents,
+        },
+        quantity: i.quantity,
+      })),
+      ...(shipping > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: { name: `Shipping — ${agency.name}` },
+                unit_amount: shipping,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
+    ],
+    success_url: `${appUrl}/checkout/success?order=${order.id}&tracking=${trackingCode}`,
+    cancel_url: `${appUrl}/checkout`,
+    metadata: {
+      order_id: order.id,
+      tracking_code: trackingCode,
+    },
+  });
+
+  await db
+    .update(orders)
+    .set({ paymentRef: session.id })
+    .where(eq(orders.id, order.id));
+
+  return NextResponse.json({
+    url: session.url,
+    orderId: order.id,
+    trackingCode,
+  });
+}
