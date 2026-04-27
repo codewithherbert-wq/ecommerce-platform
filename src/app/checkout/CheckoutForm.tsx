@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { CreditCard, Bitcoin, Loader2 } from "lucide-react";
+import { CreditCard, Bitcoin, Loader2, Truck } from "lucide-react";
 import { api } from "@/lib/api";
 import { useCart } from "@/stores/cart-store";
 import { formatMoney } from "@/lib/utils";
@@ -20,8 +20,8 @@ export function CheckoutForm({ user, agencies, config }: Props) {
   const subtotal = useCart((s) => s.subtotalCents());
   const clear = useCart((s) => s.clear);
   const [loading, setLoading] = useState(false);
-  const [method, setMethod] = useState<"stripe" | "crypto">(
-    config.enableStripe ? "stripe" : "crypto"
+  const [method, setMethod] = useState<"stripe" | "crypto" | "cod">(
+    config.enableStripe ? "stripe" : config.enableCrypto ? "crypto" : "cod"
   );
   const [agencyId, setAgencyId] = useState(agencies[0]?.id ?? "");
   const [form, setForm] = useState({
@@ -69,14 +69,23 @@ export function CheckoutForm({ user, agencies, config }: Props) {
       };
 
       const endpoint =
-        method === "stripe" ? "/checkout/stripe" : "/checkout/crypto";
+        method === "stripe"
+          ? "/checkout/stripe"
+          : method === "crypto"
+          ? "/checkout/crypto"
+          : "/checkout/cod";
       const { data } = await api.post<{
         url: string;
         orderId: string;
         trackingCode: string;
       }>(endpoint, payload);
       clear();
-      // For crypto we still go to hosted URL; user can track via code later.
+      toast.success(
+        method === "cod"
+          ? `Order placed! Tracking code ${data.trackingCode}`
+          : "Redirecting to payment…"
+      );
+      // COD: go straight to live tracking. Stripe/Coinbase: hosted gateway URL.
       window.location.href = data.url;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Checkout failed";
@@ -231,6 +240,13 @@ export function CheckoutForm({ user, agencies, config }: Props) {
                 desc="BTC, ETH, USDC — via Coinbase Commerce"
               />
             )}
+            <PaymentChoice
+              active={method === "cod"}
+              onClick={() => setMethod("cod")}
+              icon={<Truck className="h-5 w-5" />}
+              title="Pay on delivery"
+              desc="Place the order now and pay when it arrives"
+            />
           </div>
         </section>
       </div>
@@ -263,7 +279,11 @@ export function CheckoutForm({ user, agencies, config }: Props) {
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--shop-primary)] py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? "Processing…" : `Pay ${formatMoney(total)}`}
+          {loading
+            ? "Processing…"
+            : method === "cod"
+            ? `Place order — ${formatMoney(total)}`
+            : `Pay ${formatMoney(total)}`}
         </button>
         <p className="mt-3 text-center text-xs text-gray-500">
           Only registered users can purchase. Your details are secure.

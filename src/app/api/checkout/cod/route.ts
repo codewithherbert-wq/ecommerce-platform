@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, hasStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import {
   orders,
@@ -39,13 +38,9 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   const gate = await requireUser();
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-  if (!hasStripe) {
-    return NextResponse.json(
-      { error: "Stripe is not configured on the server" },
-      { status: 503 }
-    );
-  }
+  if (!gate.ok)
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -53,7 +48,6 @@ export async function POST(req: Request) {
   }
   const input = parsed.data;
 
-  // Validate product prices / stock against DB (don't trust the client).
   const productIds = input.items.map((i) => i.productId);
   const dbProducts = await db
     .select()
@@ -107,9 +101,9 @@ export async function POST(req: Request) {
     .values({
       userId: gate.session.user.id,
       trackingCode,
-      status: "pending",
+      status: "processing",
       paymentStatus: "pending",
-      paymentMethod: "stripe",
+      paymentMethod: "cod",
       subtotalCents: subtotal,
       shippingCents: shipping,
       totalCents: total,
@@ -142,55 +136,24 @@ export async function POST(req: Request) {
 
   await db.insert(trackingEvents).values({
     orderId: order.id,
-    status: "pending",
-    message: "Order placed. Awaiting payment confirmation.",
+    status: "processing",
+    message: "Order placed — awaiting payment on delivery.",
     location: [input.city, input.country].filter(Boolean).join(", ") || null,
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    customer_email: input.customerEmail,
-    line_items: [
-      ...input.items.map((i) => ({
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: i.name,
-            images: i.imageUrl ? [i.imageUrl] : undefined,
-          },
-          unit_amount: i.unitPriceCents,
-        },
-        quantity: i.quantity,
-      })),
-      ...(shipping > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd",
-                product_data: { name: `Shipping — ${agency.name}` },
-                unit_amount: shipping,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-    ],
-    success_url: `${appUrl}/checkout/success?order=${order.id}&tracking=${trackingCode}`,
-    cancel_url: `${appUrl}/checkout`,
-    metadata: {
-      order_id: order.id,
-      tracking_code: trackingCode,
-    },
-  });
+  // Decrement stock so subsequent customers see accurate availability.
+  for (const item of input.items) {
+    const p = dbProducts.find((x) => x.id === item.productId);
+    if (!p) continue;
+    await db
+      .update(products)
+      .set({ stock: Math.max(0, p.stock - item.quantity) })
+      .where(eq(products.id, p.id));
+  }
 
-  await db
-    .update(orders)
-    .set({ paymentRef: session.id })
-    .where(eq(orders.id, order.id));
-
+  // Send the user straight to their tracking page.
   return NextResponse.json({
-    url: session.url,
+    url: `/track/${trackingCode}`,
     orderId: order.id,
     trackingCode,
   });

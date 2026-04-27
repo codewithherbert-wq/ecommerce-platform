@@ -45,7 +45,10 @@ export default async function SuccessPage({
             </Link>
           </>
         )}
-        <p className="mt-8 text-sm">
+        <p className="mt-8 flex flex-col items-center gap-2 text-sm sm:flex-row sm:justify-center sm:gap-6">
+          <Link href="/orders" className="underline">
+            View all my orders
+          </Link>
           <Link href="/products" className="underline">
             Continue shopping
           </Link>
