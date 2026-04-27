@@ -16,9 +16,20 @@ export type LatLng = { lat: number; lng: number };
 export function TrackingMap({
   current,
   destination,
+  currentLabel,
+  destinationLabel,
 }: {
   current: LatLng | null;
   destination: LatLng | null;
+  currentLabel?: string | null;
+  destinationLabel?: string | null;
 }) {
-  return <MapInner current={current} destination={destination} />;
+  return (
+    <MapInner
+      current={current}
+      destination={destination}
+      currentLabel={currentLabel ?? null}
+      destinationLabel={destinationLabel ?? null}
+    />
+  );
 }

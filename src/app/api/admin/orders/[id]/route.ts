@@ -5,10 +5,13 @@ import { orders, trackingEvents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/admin";
 import { ORDER_STATUSES, STATUS_LABELS } from "@/lib/tracking";
+import { geocodeForward } from "@/lib/geocode";
 
 const schema = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
   paymentStatus: z.enum(["pending", "paid", "failed", "refunded"]).optional(),
+  currentLocation: z.string().nullable().optional(),
+  destinationLocation: z.string().nullable().optional(),
   currentLat: z.number().nullable().optional(),
   currentLng: z.number().nullable().optional(),
   destinationLat: z.number().nullable().optional(),
@@ -32,6 +35,8 @@ export async function PATCH(
   const {
     status,
     paymentStatus,
+    currentLocation,
+    destinationLocation,
     currentLat,
     currentLng,
     destinationLat,
@@ -44,6 +49,39 @@ export async function PATCH(
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (status) updates.status = status;
   if (paymentStatus) updates.paymentStatus = paymentStatus;
+
+  // Forward-geocode names to coordinates so the live map still works.
+  let resolvedCurLat = currentLat;
+  let resolvedCurLng = currentLng;
+  let resolvedDestLat = destinationLat;
+  let resolvedDestLng = destinationLng;
+  if (currentLocation !== undefined) {
+    updates.currentLocation = currentLocation;
+    if (currentLocation && (currentLat === undefined || currentLat === null)) {
+      const geo = await geocodeForward(currentLocation);
+      if (geo) {
+        updates.currentLat = geo.lat;
+        updates.currentLng = geo.lng;
+        resolvedCurLat = geo.lat;
+        resolvedCurLng = geo.lng;
+      }
+    }
+  }
+  if (destinationLocation !== undefined) {
+    updates.destinationLocation = destinationLocation;
+    if (
+      destinationLocation &&
+      (destinationLat === undefined || destinationLat === null)
+    ) {
+      const geo = await geocodeForward(destinationLocation);
+      if (geo) {
+        updates.destinationLat = geo.lat;
+        updates.destinationLng = geo.lng;
+        resolvedDestLat = geo.lat;
+        resolvedDestLng = geo.lng;
+      }
+    }
+  }
   if (currentLat !== undefined) updates.currentLat = currentLat;
   if (currentLng !== undefined) updates.currentLng = currentLng;
   if (destinationLat !== undefined) updates.destinationLat = destinationLat;
@@ -57,18 +95,28 @@ export async function PATCH(
     .returning();
 
   // Log a tracking event when status changes or when admin adds a note.
-  if (status || message || location) {
+  const eventLocation = location ?? currentLocation ?? null;
+  if (status || message || eventLocation) {
     await db.insert(trackingEvents).values({
       orderId: id,
       status: status ?? row.status,
       message:
         message ??
-        (status ? `Status updated: ${STATUS_LABELS[status]}` : "Update"),
-      location: location ?? null,
-      lat: currentLat ?? null,
-      lng: currentLng ?? null,
+        (status
+          ? `Status updated: ${STATUS_LABELS[status]}`
+          : eventLocation
+          ? `Now at ${eventLocation}`
+          : "Update"),
+      location: eventLocation,
+      lat: resolvedCurLat ?? null,
+      lng: resolvedCurLng ?? null,
     });
   }
+
+  // Note: resolvedDestLat/Lng are stored on the order row above; nothing else
+  // to do with them here (referenced to silence unused-var lint).
+  void resolvedDestLat;
+  void resolvedDestLng;
 
   return NextResponse.json({ order: row });
 }

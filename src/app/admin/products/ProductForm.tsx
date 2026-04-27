@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type { Product, Category } from "@/lib/db/schema";
+import { ImageUpload } from "@/components/ImageUpload";
+import { MultiImageUpload } from "@/components/MultiImageUpload";
 
 type Props = {
   product?: Product;
@@ -24,7 +26,7 @@ export function ProductForm({ product, categories }: Props) {
       : "",
     currency: product?.currency ?? "USD",
     imageUrl: product?.imageUrl ?? "",
-    images: product?.images?.join("\n") ?? "",
+    images: (product?.images ?? []) as string[],
     stock: product?.stock.toString() ?? "0",
     sku: product?.sku ?? "",
     categoryId: product?.categoryId ?? "",
@@ -46,10 +48,7 @@ export function ProductForm({ product, categories }: Props) {
           : undefined,
         currency: form.currency,
         imageUrl: form.imageUrl || null,
-        images: form.images
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        images: form.images,
         stock: parseInt(form.stock, 10) || 0,
         sku: form.sku || null,
         categoryId: form.categoryId || null,
@@ -132,16 +131,15 @@ export function ProductForm({ product, categories }: Props) {
           onChange={(v) => setForm({ ...form, stock: v })}
         />
       </div>
-      <Field
-        label="Main image URL"
+      <ImageUpload
+        label="Main image"
         value={form.imageUrl}
         onChange={(v) => setForm({ ...form, imageUrl: v })}
       />
-      <Field
-        label="Additional image URLs (one per line)"
-        value={form.images}
+      <MultiImageUpload
+        label="Additional images (gallery)"
+        values={form.images}
         onChange={(v) => setForm({ ...form, images: v })}
-        textarea
       />
       <div>
         <label className="text-sm font-medium">Category</label>

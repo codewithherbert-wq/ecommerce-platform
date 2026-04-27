@@ -66,8 +66,36 @@ export default async function TrackOrder({
         </div>
       </div>
 
+      {/* Live location summary */}
+      {(order.currentLocation || order.destinationLocation) && (
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div className="text-xs uppercase text-gray-500">
+              Current location
+            </div>
+            <div className="mt-1 text-sm font-medium">
+              {order.currentLocation ?? "Awaiting first scan"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div className="text-xs uppercase text-gray-500">Destination</div>
+            <div className="mt-1 text-sm font-medium">
+              {order.destinationLocation ||
+                [
+                  order.shippingAddress?.city,
+                  order.shippingAddress?.state,
+                  order.shippingAddress?.country,
+                ]
+                  .filter(Boolean)
+                  .join(", ") ||
+                "—"}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Map */}
-      <div className="mt-8 h-80 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+      <div className="mt-6 h-72 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800 sm:h-80">
         <TrackingMap
           current={
             order.currentLat != null && order.currentLng != null
@@ -79,6 +107,8 @@ export default async function TrackOrder({
               ? { lat: order.destinationLat, lng: order.destinationLng }
               : null
           }
+          currentLabel={order.currentLocation}
+          destinationLabel={order.destinationLocation}
         />
       </div>
 
