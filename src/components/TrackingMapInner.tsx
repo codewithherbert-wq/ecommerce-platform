@@ -24,9 +24,13 @@ type LatLng = { lat: number; lng: number };
 export default function TrackingMapInner({
   current,
   destination,
+  currentLabel,
+  destinationLabel,
 }: {
   current: LatLng | null;
   destination: LatLng | null;
+  currentLabel: string | null;
+  destinationLabel: string | null;
 }) {
   useEffect(() => {
     // Remove any stale default icon image paths once on mount.
@@ -65,12 +69,28 @@ export default function TrackingMapInner({
       />
       {current && (
         <Marker position={[current.lat, current.lng]} icon={truckIcon}>
-          <Popup>Current location</Popup>
+          <Popup>
+            <strong>Current location</strong>
+            {currentLabel ? (
+              <>
+                <br />
+                {currentLabel}
+              </>
+            ) : null}
+          </Popup>
         </Marker>
       )}
       {destination && (
         <Marker position={[destination.lat, destination.lng]}>
-          <Popup>Destination</Popup>
+          <Popup>
+            <strong>Destination</strong>
+            {destinationLabel ? (
+              <>
+                <br />
+                {destinationLabel}
+              </>
+            ) : null}
+          </Popup>
         </Marker>
       )}
       {current && destination && (

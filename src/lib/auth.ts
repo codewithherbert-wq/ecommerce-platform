@@ -1,8 +1,8 @@
 import NextAuth, { type DefaultSession } from "next-auth";
 import Google from "next-auth/providers/google";
-import Facebook from "next-auth/providers/facebook";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import {
   users,
@@ -41,63 +41,38 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
   );
 }
 
-if (process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET) {
-  providers.push(
-    Facebook({
-      clientId: process.env.AUTH_FACEBOOK_ID,
-      clientSecret: process.env.AUTH_FACEBOOK_SECRET,
-      allowDangerousEmailAccountLinking: true,
-    })
-  );
-}
+// Email + password credentials provider (always enabled).
+providers.push(
+  Credentials({
+    id: "credentials",
+    name: "Email and password",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+    },
+    authorize: async (credentials) => {
+      if (!credentials?.email || !credentials?.password) return null;
+      const email = String(credentials.email).toLowerCase().trim();
+      const password = String(credentials.password);
 
-// Dev-only credentials provider to allow testing without OAuth setup.
-if (process.env.ENABLE_DEV_LOGIN === "1") {
-  providers.push(
-    Credentials({
-      id: "dev",
-      name: "Dev login (development only)",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: async (credentials) => {
-        if (!credentials?.email || !credentials?.password) return null;
-        if (credentials.password !== "password") return null;
-        const email = String(credentials.email).toLowerCase();
-
-        const existing = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, email))
-          .limit(1);
-        if (existing[0]) {
-          return {
-            id: existing[0].id,
-            email: existing[0].email,
-            name: existing[0].name,
-            image: existing[0].image,
-          };
-        }
-
-        const [created] = await db
-          .insert(users)
-          .values({
-            email,
-            name: email.split("@")[0],
-            role: adminEmails.includes(email) ? "admin" : "customer",
-          })
-          .returning();
-        return {
-          id: created.id,
-          email: created.email,
-          name: created.name,
-          image: created.image,
-        };
-      },
-    })
-  );
-}
+      const [existing] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (!existing || !existing.passwordHash) return null;
+      const ok = await bcrypt.compare(password, existing.passwordHash);
+      if (!ok) return null;
+      return {
+        id: existing.id,
+        email: existing.email,
+        name: existing.name,
+        image: existing.image,
+        role: existing.role as "customer" | "admin",
+      };
+    },
+  })
+);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -157,8 +132,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 export const enabledProviders = {
   google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
-  facebook: Boolean(
-    process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET
-  ),
-  dev: process.env.ENABLE_DEV_LOGIN === "1",
+  credentials: true,
 };

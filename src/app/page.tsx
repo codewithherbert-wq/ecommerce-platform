@@ -40,15 +40,15 @@ export default async function Home() {
           background: `linear-gradient(135deg, var(--shop-primary), color-mix(in oklab, var(--shop-primary) 60%, var(--shop-accent)))`,
         }}
       >
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:py-32">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-2 lg:py-32">
           <div className="text-white">
             <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
               {config.tagline}
             </span>
-            <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
+            <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
               {config.heroHeadline}
             </h1>
-            <p className="mt-5 max-w-lg text-lg text-white/85">
+            <p className="mt-5 max-w-lg text-base text-white/85 sm:text-lg">
               {config.heroSubheadline}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">

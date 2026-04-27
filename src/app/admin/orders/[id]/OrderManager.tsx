@@ -26,11 +26,18 @@ export function OrderManager({
   const [form, setForm] = useState({
     status: order.status,
     paymentStatus: order.paymentStatus,
-    currentLat: order.currentLat?.toString() ?? "",
-    currentLng: order.currentLng?.toString() ?? "",
-    destinationLat: order.destinationLat?.toString() ?? "",
-    destinationLng: order.destinationLng?.toString() ?? "",
-    location: "",
+    currentLocation: order.currentLocation ?? "",
+    destinationLocation:
+      order.destinationLocation ??
+      (order.shippingAddress
+        ? [
+            order.shippingAddress.city,
+            order.shippingAddress.state,
+            order.shippingAddress.country,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        : ""),
     message: "",
   });
 
@@ -44,15 +51,14 @@ export function OrderManager({
           | "paid"
           | "failed"
           | "refunded",
-        currentLat: form.currentLat ? parseFloat(form.currentLat) : null,
-        currentLng: form.currentLng ? parseFloat(form.currentLng) : null,
-        destinationLat: form.destinationLat
-          ? parseFloat(form.destinationLat)
-          : null,
-        destinationLng: form.destinationLng
-          ? parseFloat(form.destinationLng)
-          : null,
-        location: form.location || undefined,
+        currentLocation: form.currentLocation || null,
+        destinationLocation: form.destinationLocation || null,
+        // Clearing the name should also clear the cached coordinates so the
+        // server re-geocodes next time. Pass null when name is empty.
+        currentLat: form.currentLocation ? undefined : null,
+        currentLng: form.currentLocation ? undefined : null,
+        destinationLat: form.destinationLocation ? undefined : null,
+        destinationLng: form.destinationLocation ? undefined : null,
         message: form.message || undefined,
       };
       const { data } = await api.patch<{ order: Order }>(
@@ -60,7 +66,7 @@ export function OrderManager({
         payload
       );
       setOrder(data.order);
-      setForm((f) => ({ ...f, location: "", message: "" }));
+      setForm((f) => ({ ...f, message: "" }));
       // Refresh events list
       const { data: tracking } = await api.get<{ events: TrackingEvent[] }>(
         `/tracking/${order.trackingCode}`
@@ -130,52 +136,36 @@ export function OrderManager({
               </label>
             </div>
 
-            <h3 className="mt-6 text-sm font-semibold">Live location (lat, lng)</h3>
+            <h3 className="mt-6 text-sm font-semibold">Live location</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Type a place name (e.g. “Berlin warehouse”, “Lagos, Nigeria”).
+              We’ll auto-geocode it for the live map.
+              {order.currentLat != null && order.currentLng != null && (
+                <>
+                  {" "}Last coords: {order.currentLat.toFixed(4)},{" "}
+                  {order.currentLng.toFixed(4)}
+                </>
+              )}
+            </p>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-sm">Current lat</span>
+                <span className="text-sm">Current location</span>
                 <input
-                  type="number"
-                  step="any"
-                  value={form.currentLat}
+                  placeholder="e.g. Berlin distribution center"
+                  value={form.currentLocation}
                   onChange={(e) =>
-                    setForm({ ...form, currentLat: e.target.value })
+                    setForm({ ...form, currentLocation: e.target.value })
                   }
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
                 />
               </label>
               <label className="block">
-                <span className="text-sm">Current lng</span>
+                <span className="text-sm">Destination</span>
                 <input
-                  type="number"
-                  step="any"
-                  value={form.currentLng}
+                  placeholder="e.g. Brooklyn, NY"
+                  value={form.destinationLocation}
                   onChange={(e) =>
-                    setForm({ ...form, currentLng: e.target.value })
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm">Destination lat</span>
-                <input
-                  type="number"
-                  step="any"
-                  value={form.destinationLat}
-                  onChange={(e) =>
-                    setForm({ ...form, destinationLat: e.target.value })
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm">Destination lng</span>
-                <input
-                  type="number"
-                  step="any"
-                  value={form.destinationLng}
-                  onChange={(e) =>
-                    setForm({ ...form, destinationLng: e.target.value })
+                    setForm({ ...form, destinationLocation: e.target.value })
                   }
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
                 />
@@ -183,21 +173,17 @@ export function OrderManager({
             </div>
 
             <h3 className="mt-6 text-sm font-semibold">Add a tracking event</h3>
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="mt-2">
               <input
-                placeholder="Location label (e.g. Berlin warehouse)"
-                value={form.location}
-                onChange={(e) =>
-                  setForm({ ...form, location: e.target.value })
-                }
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-              />
-              <input
-                placeholder="Message"
+                placeholder="Message (optional, e.g. ‘Out for delivery from regional hub’)"
                 value={form.message}
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Saving with a new location auto-creates a “Now at …” tracking
+                event for the customer.
+              </p>
             </div>
 
             <div className="mt-6 flex justify-end">

@@ -20,6 +20,7 @@ export const users = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
+  passwordHash: text("passwordHash"),
   role: text("role").notNull().default("customer"), // "customer" | "admin"
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
@@ -180,7 +181,9 @@ export const orders = pgTable("order", {
   }),
   deliveryAgencyName: text("delivery_agency_name"),
 
-  // Live tracking coordinates
+  // Live tracking — human-readable location names (primary) + optional coords
+  currentLocation: text("current_location"),
+  destinationLocation: text("destination_location"),
   currentLat: doublePrecision("current_lat"),
   currentLng: doublePrecision("current_lng"),
   destinationLat: doublePrecision("destination_lat"),

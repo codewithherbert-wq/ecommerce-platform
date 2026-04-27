@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type { ShopConfig } from "@/lib/db/schema";
+import { ImageUpload } from "@/components/ImageUpload";
 
 const PRESETS = [
   {
@@ -77,8 +78,8 @@ export function SettingsForm({ config }: { config: ShopConfig }) {
           onChange={(v) => setForm({ ...form, description: v })}
           textarea
         />
-        <Field
-          label="Logo URL"
+        <ImageUpload
+          label="Logo"
           value={form.logoUrl}
           onChange={(v) => setForm({ ...form, logoUrl: v })}
         />
@@ -113,8 +114,8 @@ export function SettingsForm({ config }: { config: ShopConfig }) {
           value={form.heroCtaLabel}
           onChange={(v) => setForm({ ...form, heroCtaLabel: v })}
         />
-        <Field
-          label="Hero image URL"
+        <ImageUpload
+          label="Hero image"
           value={form.heroImageUrl}
           onChange={(v) => setForm({ ...form, heroImageUrl: v })}
         />
