@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { orders, orderItems, deliveryAgencies, products } from "@/lib/db/schema";
+import {
+  orders,
+  orderItems,
+  deliveryAgencies,
+  products,
+  trackingEvents,
+} from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { requireUser } from "@/lib/admin";
 import { createCoinbaseCharge, hasCoinbase } from "@/lib/coinbase";
@@ -132,6 +138,13 @@ export async function POST(req: Request) {
       quantity: i.quantity,
     }))
   );
+
+  await db.insert(trackingEvents).values({
+    orderId: order.id,
+    status: "pending",
+    message: "Order placed. Awaiting crypto payment.",
+    location: [input.city, input.country].filter(Boolean).join(", ") || null,
+  });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const charge = await createCoinbaseCharge({
