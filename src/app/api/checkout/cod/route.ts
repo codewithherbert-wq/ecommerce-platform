@@ -8,7 +8,7 @@ import {
   products,
   trackingEvents,
 } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { requireUser } from "@/lib/admin";
 import { generateTrackingCode } from "@/lib/tracking";
 
@@ -141,14 +141,14 @@ export async function POST(req: Request) {
     location: [input.city, input.country].filter(Boolean).join(", ") || null,
   });
 
-  // Decrement stock so subsequent customers see accurate availability.
+  // Atomic stock decrement so concurrent orders can't oversell.
   for (const item of input.items) {
-    const p = dbProducts.find((x) => x.id === item.productId);
-    if (!p) continue;
     await db
       .update(products)
-      .set({ stock: Math.max(0, p.stock - item.quantity) })
-      .where(eq(products.id, p.id));
+      .set({
+        stock: sql`GREATEST(0, ${products.stock} - ${item.quantity})`,
+      })
+      .where(eq(products.id, item.productId));
   }
 
   // Send the user straight to their tracking page.

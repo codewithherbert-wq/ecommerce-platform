@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { orders, trackingEvents, products, orderItems } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
@@ -43,25 +43,19 @@ export async function POST(req: Request) {
         message: "Payment received. Order confirmed.",
       });
 
-      // Decrement stock
+      // Atomic stock decrement.
       const items = await db
         .select()
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
       for (const item of items) {
-        if (item.productId) {
-          const [p] = await db
-            .select({ stock: products.stock })
-            .from(products)
-            .where(eq(products.id, item.productId))
-            .limit(1);
-          if (p) {
-            await db
-              .update(products)
-              .set({ stock: Math.max(0, p.stock - item.quantity) })
-              .where(eq(products.id, item.productId));
-          }
-        }
+        if (!item.productId) continue;
+        await db
+          .update(products)
+          .set({
+            stock: sql`GREATEST(0, ${products.stock} - ${item.quantity})`,
+          })
+          .where(eq(products.id, item.productId));
       }
     }
   }

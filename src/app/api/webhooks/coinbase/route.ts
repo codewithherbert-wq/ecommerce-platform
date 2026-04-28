@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyCoinbaseSignature } from "@/lib/coinbase";
 import { db } from "@/lib/db";
 import { orders, trackingEvents, products, orderItems } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const raw = await req.text();
@@ -36,19 +36,13 @@ export async function POST(req: Request) {
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
     for (const item of items) {
-      if (item.productId) {
-        const [p] = await db
-          .select({ stock: products.stock })
-          .from(products)
-          .where(eq(products.id, item.productId))
-          .limit(1);
-        if (p) {
-          await db
-            .update(products)
-            .set({ stock: Math.max(0, p.stock - item.quantity) })
-            .where(eq(products.id, item.productId));
-        }
-      }
+      if (!item.productId) continue;
+      await db
+        .update(products)
+        .set({
+          stock: sql`GREATEST(0, ${products.stock} - ${item.quantity})`,
+        })
+        .where(eq(products.id, item.productId));
     }
   } else if (type === "charge:failed") {
     await db
