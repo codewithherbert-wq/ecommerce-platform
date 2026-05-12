@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import { useCart } from "@/stores/cart-store";
 import { useUI } from "@/stores/ui-store";
 import { formatMoney } from "@/lib/utils";
@@ -12,66 +12,101 @@ export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
   const openCart = useUI((s) => s.openCart);
 
+  const hasDiscount =
+    product.compareAtPriceCents &&
+    product.compareAtPriceCents > product.priceCents;
+
+  const discountPct = hasDiscount
+    ? Math.round((1 - product.priceCents / product.compareAtPriceCents!) * 100)
+    : null;
+
   return (
-    <div className="group flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:shadow-lg dark:border-gray-800 dark:bg-gray-900">
-      <Link href={`/products/${product.slug}`} className="block">
-        <div className="aspect-square w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+    <div className="group flex flex-col">
+      {/* ── Image area ── */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800">
+        <Link
+          href={`/products/${product.slug}`}
+          className="block h-full w-full"
+        >
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="h-full w-full object-cover transition group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-gray-400">
+            <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
               No image
             </div>
           )}
-        </div>
-      </Link>
-      <div className="flex flex-1 flex-col justify-between p-4">
-        <div>
-          <Link
-            href={`/products/${product.slug}`}
-            className="text-sm font-medium line-clamp-2 hover:text-[var(--shop-accent)]"
-          >
-            {product.name}
-          </Link>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-base font-semibold">
+        </Link>
+
+        {/* Badge — top left */}
+        {product.featured && !hasDiscount && (
+          <span className="absolute left-3 top-3 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm">
+            Bestseller
+          </span>
+        )}
+        {discountPct && (
+          <span className="absolute left-3 top-3 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm">
+            {discountPct}% OFF
+          </span>
+        )}
+
+        {/* Heart — top right */}
+        <button
+          aria-label="Wishlist"
+          className="absolute right-2.5 top-2.5 grid h-8 w-8 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition hover:scale-110 hover:bg-white dark:bg-gray-900/80 dark:hover:bg-gray-900"
+        >
+          <Heart className="h-3.5 w-3.5 text-gray-500 dark:text-gray-300" />
+        </button>
+      </div>
+
+      {/* ── Info below image ── */}
+      <div className="mt-2.5 px-0.5">
+        <Link
+          href={`/products/${product.slug}`}
+          className="line-clamp-1 text-[13px] font-medium text-gray-700 dark:text-gray-200 transition hover:text-[var(--shop-accent)]"
+        >
+          {product.name}
+        </Link>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-bold text-gray-900 dark:text-white">
               {formatMoney(product.priceCents, product.currency)}
             </span>
-            {product.compareAtPriceCents &&
-              product.compareAtPriceCents > product.priceCents && (
-                <span className="text-xs text-gray-500 line-through">
-                  {formatMoney(product.compareAtPriceCents, product.currency)}
-                </span>
-              )}
+            {hasDiscount && (
+              <span className="text-xs text-gray-400 line-through">
+                {formatMoney(product.compareAtPriceCents!, product.currency)}
+              </span>
+            )}
           </div>
+
+          {/* Add to cart button */}
+          <button
+            disabled={product.stock <= 0}
+            onClick={() => {
+              add(
+                {
+                  id: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  priceCents: product.priceCents,
+                  imageUrl: product.imageUrl,
+                  stock: product.stock,
+                },
+                1,
+              );
+              toast.success(`${product.name} added to cart`);
+              openCart();
+            }}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[var(--shop-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 hover:scale-[1.02] active:scale-100 disabled:opacity-40 cursor-pointer"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            {product.stock > 0 ? "Add to cart" : "Out of stock"}
+          </button>
         </div>
-        <button
-          disabled={product.stock <= 0}
-          onClick={() => {
-            add(
-              {
-                id: product.id,
-                slug: product.slug,
-                name: product.name,
-                priceCents: product.priceCents,
-                imageUrl: product.imageUrl,
-                stock: product.stock,
-              },
-              1
-            );
-            toast.success(`${product.name} added to cart`);
-            openCart();
-          }}
-          className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-[var(--shop-primary)] px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-        >
-          <ShoppingCart className="h-3.5 w-3.5" />
-          {product.stock > 0 ? "Add to cart" : "Out of stock"}
-        </button>
       </div>
     </div>
   );

@@ -57,6 +57,7 @@ export default function TrackingMapInner({
   const zoom = points.length > 0 ? 4 : 2;
 
   return (
+    <div className="relative h-full w-full" style={{ isolation: "isolate" }}>
     <MapContainer
       center={center}
       zoom={zoom}
@@ -103,5 +104,6 @@ export default function TrackingMapInner({
         />
       )}
     </MapContainer>
+    </div>
   );
 }

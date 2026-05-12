@@ -3,7 +3,7 @@ import type { ShopConfig } from "@/lib/db/schema";
 
 export function Footer({ config }: { config: ShopConfig }) {
   return (
-    <footer className="mt-16 border-t border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950 sm:mt-20">
+    <footer className=" border-t border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950 sm:mt-20">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>

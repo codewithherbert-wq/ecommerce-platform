@@ -276,7 +276,7 @@ export function CheckoutForm({ user, agencies, config }: Props) {
         <button
           type="submit"
           disabled={loading}
-          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--shop-primary)] py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--shop-primary)] py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading
@@ -356,7 +356,7 @@ function PaymentChoice({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-start gap-3 rounded-md border p-3 text-left ${
+      className={`flex items-start gap-3 rounded-md border p-3 text-left cursor-pointer ${
         active
           ? "border-[var(--shop-primary)] bg-gray-50 dark:bg-gray-900"
           : "border-gray-200 dark:border-gray-800"

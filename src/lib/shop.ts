@@ -13,8 +13,8 @@ const DEFAULT: ShopConfig = {
   heroSubheadline:
     "Discover hand-picked products, delivered to your door.",
   heroCtaLabel: "Shop now",
-  primaryColor: "#111827",
-  accentColor: "#f59e0b",
+  primaryColor: "#000000", 
+accentColor:  "#ffffff", 
   currency: "USD",
   supportEmail: null,
   enableStripe: true,
